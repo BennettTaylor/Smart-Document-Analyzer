@@ -1,6 +1,7 @@
 from flask import Flask, jasonify, request
 import uuid
 
+
 class User:
     def signup(self):
         user = {
