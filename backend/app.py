@@ -1,5 +1,6 @@
 from flask import Flask, render_template
-from flask_restful import Api, Resource, reqparse
+from flask_restful import Api, Resource
+from user import routes
 
 app = Flask(__name__)
 api = Api(app)
@@ -16,9 +17,11 @@ class File(Resource):
 def home():
     return render_template('index.html')
 
+
 @app.route('/dashboard')
 def dashboard():
     return render_template('index.html')
+
 
 if __name__ == "__main__":
     app.run(debug=True)

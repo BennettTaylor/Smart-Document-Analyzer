@@ -1,12 +1,12 @@
-from flask import Flask, jasonify
-
+from flask import Flask, jasonify, request
+import uuid
 
 class User:
-    def signUp(self):
+    def signup(self):
         user = {
-            "_id": "",
-            "name": "",
-            "email": "",
-            "password": ""
+            "_id": uuid.uuid4().hex,
+            "name": request.form.get('name'),
+            "email": request.form.get('email'),
+            "password": request.form.get('password')
         }
         return jasonify(user), 200
