@@ -2,6 +2,8 @@ const getState = ({ getStore, getActions, setStore }) => {
 	return {
 		store: {
 			message: null,
+			token: null,
+			file_names: null,
 			demo: [
 				{
 					title: "FIRST",
@@ -19,6 +21,71 @@ const getState = ({ getStore, getActions, setStore }) => {
 			// Use getActions to call a function within a fuction
 			exampleFunction: () => {
 				getActions().changeColor(0, "green");
+			},
+
+			synchTokenFromSessionStorage: () => {
+				const token = sessionStorage.getItem("token")
+				if (token && token !== "" && token !== undefined) setStore({ token: token});
+			},
+
+			logout: () => {
+				sessionStorage.removeItem("token");
+				setStore({ token: null});
+			},
+
+			login: async (email, password) => {
+				const opts = {
+					method: 'POST',
+					headers: {
+						"Content-Type": "application/json"
+					},
+					body: JSON.stringify({
+							email: email,
+							password: password
+					})
+				}
+				try {
+					const resp = await fetch('http://localhost:5000/login', opts)
+					if (resp.status !== 200) {
+						alert("There has been a login error");
+						return false;
+					}
+					const data = await resp.json();
+					sessionStorage.setItem("token", data.access_token)
+					setStore({ token: data.access_token})
+					return true;
+				}
+				catch(error) {
+					console.error("There has been a login error")
+				}
+			},
+
+			register: async (name, email, password) => {
+				const opts = {
+					method: 'POST',
+					headers: {
+						"Content-Type": "application/json"
+					},
+					body: JSON.stringify({
+							name: name,
+							email: email,
+							password: password
+					})
+				}
+				try {
+					const resp = await fetch('http://localhost:5000/register', opts)
+					if (resp.status !== 200) {
+						alert("There has been a registration error");
+						return false;
+					}
+					const data = await resp.json();
+					sessionStorage.setItem("token", data.access_token)
+					setStore({ token: data.access_token})
+					return true;
+				}
+				catch(error) {
+					console.error("There has been a login error")
+				}
 			},
 
 			getMessage: async () => {
