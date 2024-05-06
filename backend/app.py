@@ -18,9 +18,13 @@ from flask_sqlalchemy import SQLAlchemy
 import pathlib
 from pypdf import PdfReader
 from nlp import perform_nlp, generate_summary
+from celery import Celery
 
 ALLOWED_EXTENSIONS = {'pdf', 'txt'}
 
+# Initialize Celery
+celery = Celery(__name__)
+celery.config_from_object('celeryconfig')
 
 # Make API
 app = Flask(__name__)
@@ -82,6 +86,33 @@ jwt = JWTManager(app)
 
 
 # Define functions
+@celery.task
+def process_file(file_data, user_id):
+    # Process the file and save to the database
+    text = convertFiletoText(file_data)
+    paragraphs = text.split("\\n\\n")
+    sentiment, keywords = perform_nlp(text)
+    summary = generate_summary(text)
+    new_file = File(name=str(file_data.filename),
+                    content=str(text),
+                    user_id=user_id,
+                    sentiment_score=sentiment,
+                    keywords=str(keywords[0]),
+                    document_summary=str(summary))
+    db.session.add(new_file)
+    db.session.commit()
+    for paragraph in paragraphs:
+        sentiment, keywords = perform_nlp(paragraph)
+        new_paragraph = Paragraph(
+            content=str(paragraph),
+            sentiment_score=sentiment,
+            keywords=str(keywords[0]),
+            file_id=new_file.id
+        )
+        db.session.add(new_paragraph)
+        db.session.commit()
+
+
 def convertFiletoText(file):
     text = ""
     if pathlib.Path(file.filename).suffix == '.pdf':
@@ -162,28 +193,7 @@ def upload_file():
 
     if file and allowed_file(file.filename):
         # Save file metadata to the database
-        text = convertFiletoText(file)
-        paragraphs = text.split("\\n\\n")
-        sentiment, keywords = perform_nlp(text)
-        summary = generate_summary(text)
-        new_file = File(name=str(file.filename),
-                        content=str(text),
-                        user_id=user.id,
-                        sentiment_score=sentiment,
-                        keywords=str(keywords[0]),
-                        document_summary=str(summary))
-        db.session.add(new_file)
-        db.session.commit()
-        for paragraph in paragraphs:
-            sentiment, keywords = perform_nlp(paragraph)
-            new_paragraph = Paragraph(
-                content=str(paragraph),
-                sentiment_score=sentiment,
-                keywords=str(keywords[0]),
-                file_id=new_file.id
-            )
-            db.session.add(new_paragraph)
-            db.session.commit()
+        process_file.delay(file, user.id)
     return jsonify({"msg": "File uploaded successfully"}), 200
 
 
