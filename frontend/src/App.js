@@ -5,6 +5,7 @@ import { Login } from './pages/login/login.js'
 import { Home } from './pages/home/home.js'
 import { Register } from './pages/register/register.js'
 import { Dashboard } from './pages/dashboard/dashboard.js'
+import { FileDetails } from './pages/filedetails/filedetails.js'
 
 import { Navbar } from "./components/navbar.js";
 import injectContext from "./store/appContext";
@@ -20,6 +21,7 @@ function App() {
             <Route element={<Login />} path="/login" />
             <Route element={<Register />} path="/register" />
             <Route element={<Dashboard />} path="/dashboard" />
+            <Route element={<FileDetails />} path="/file/:id"/>
             <Route element={<h1>Not found!</h1>} />
         </Routes>
       </BrowserRouter>

@@ -17,6 +17,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 import pathlib
 from pypdf import PdfReader
+from nlp import perform_nlp, generate_summary
 
 ALLOWED_EXTENSIONS = {'pdf', 'txt'}
 
@@ -50,8 +51,22 @@ class File(db.Model):
     __tablename__ = "files"
     id = db.Column(db.String(32), primary_key=True, unique=True, default=get_uuid)
     name = db.Column(db.String(80), unique=False, nullable=False)
-    content = db.Column(db.Text)
+    content = db.Column(db.String)
+    sentiment_score = db.Column(db.Float)
+    document_summary = db.Column(db.String)
+    keywords = db.Column(db.String)
     user_id = db.Column(db.String(32), db.ForeignKey('users.id'))
+    paragraphs = db.relationship("Paragraph", backref="user")
+
+
+class Paragraph(db.Model):
+    __tablename__ = 'paragraphs'
+    id = db.Column(db.String(32), primary_key=True, unique=True, default=get_uuid)
+    content = db.Column(db.String)
+    sentiment_score = db.Column(db.Float)
+    document_summary = db.Column(db.String)
+    keywords = db.Column(db.String)
+    file_id = db.Column(db.String(32), db.ForeignKey('files.id'))
 
 
 # Create the database tables
@@ -67,6 +82,22 @@ jwt = JWTManager(app)
 
 
 # Define functions
+def convertFiletoText(file):
+    text = ""
+    if pathlib.Path(file.filename).suffix == '.pdf':
+        reader = PdfReader(file)
+        for i in range(len(reader.pages)):
+            page = reader.pages[i]
+            text.append(page.extract_text)
+    else:
+        text = file.read()
+        text = str(text)
+        text = text.replace(text[0], "", 1)
+        text = text.replace(text[0], "", 1)
+        text = text.replace(text[-1], "", 1)
+    return str(text)
+
+
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -131,30 +162,68 @@ def upload_file():
 
     if file and allowed_file(file.filename):
         # Save file metadata to the database
-        text = ""
-        if pathlib.Path(file.filename).suffix == '.pdf':
-            reader = PdfReader(file)
-            for i in range(len(reader.pages)):
-                page = reader.pages[i]
-                text.append(page.extract_text)
-        else:
-            text = file.read()
-        new_file = File(name=file.filename, content=text, user_id=user.id)
+        text = convertFiletoText(file)
+        paragraphs = text.split("\\n\\n")
+        sentiment, keywords = perform_nlp(text)
+        summary = generate_summary(text)
+        new_file = File(name=str(file.filename),
+                        content=str(text),
+                        user_id=user.id,
+                        sentiment_score=sentiment,
+                        keywords=str(keywords[0]),
+                        document_summary=str(summary))
         db.session.add(new_file)
         db.session.commit()
-
+        for paragraph in paragraphs:
+            sentiment, keywords = perform_nlp(paragraph)
+            new_paragraph = Paragraph(
+                content=str(paragraph),
+                sentiment_score=sentiment,
+                keywords=str(keywords[0]),
+                file_id=new_file.id
+            )
+            db.session.add(new_paragraph)
+            db.session.commit()
     return jsonify({"msg": "File uploaded successfully"}), 200
 
 
-@app.route('/get_filenames', methods=['GET'])
+@app.route('/get_files', methods=['GET'])
 @jwt_required()
 def get_filenames():
     email = get_jwt_identity()
     user = User.query.filter_by(email=email).first()
-    file_names = []
+    files = []
     for file in user.files:
-        file_names.append(file.name)
-    return jsonify({"file_names": file_names}), 200
+        files.append({"name": file.name,
+                      "id": file.id})
+    return jsonify({"files": files}), 200
+
+
+@app.route('/get_file_details/<file_id>', methods=['GET'])
+@jwt_required()
+def get_file_details(file_id):
+    email = get_jwt_identity()
+    user = User.query.filter_by(email=email).first()
+    for files in user.files:
+        if files.id == file_id:
+            file = files
+    if file is None:
+        return jsonify({"error": "Document does not exist"}), 400
+    paragraphs = []
+    for paragraph in file.paragraphs:
+        paragraphs.append({
+            "text": str(paragraph.content),
+            "sentiment_score": paragraph.sentiment_score,
+            "keywords": paragraph.keywords,
+            })
+    return jsonify({"fileDetails": {
+        "filename": str(file.name),
+        "text": str(file.content),
+        "document_summary": str(file.document_summary),
+        "sentiment_score": file.sentiment_score,
+        "keywords": file.keywords,
+        "paragraphs": paragraphs
+    }})
 
 
 # Run API

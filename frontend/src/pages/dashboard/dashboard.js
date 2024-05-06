@@ -1,22 +1,21 @@
 // Dashboard.js
 import React, { useState, useEffect, useContext } from 'react';
 import { Context } from "../../store/appContext";
-import { useNavigate } from 'react-router-dom';
+import { Link } from "react-router-dom";
 import "./dashboard.css";
 
 export const Dashboard = () => {
     const { store } = useContext(Context);;
-    const [fileNames, setFileNames] = useState([]);
+    const [files, setFiles] = useState([]);
     const [selectedFile, setSelectedFile] = useState(null);
-    const navigate = useNavigate();
 
     useEffect(() => {
-        fetchFileNames();
+        fetchFiles();
     }, []);
 
-    const fetchFileNames = async () => {
+    const fetchFiles = async () => {
         try {
-            const response = await fetch('http://localhost:5000/get_filenames', {
+            const response = await fetch('http://localhost:5000/get_files', {
                 headers: {
                     Authorization: `Bearer ${store.token}`
                 }
@@ -25,7 +24,7 @@ export const Dashboard = () => {
                 throw new Error('Failed to fetch file names');
             }
             const data = await response.json();
-            setFileNames(data.file_names);
+            setFiles(data.files);
         } catch (error) {
             console.error(error.message);
         }
@@ -50,7 +49,7 @@ export const Dashboard = () => {
             if (!response.ok) {
                 throw new Error('Failed to upload file');
             }
-            fetchFileNames();
+            fetchFiles();
         } catch (error) {
             console.error(error.message);
         }
@@ -63,8 +62,8 @@ export const Dashboard = () => {
             <button onClick={handleUpload}>Upload</button>
             <div>
             <h2>File List</h2>
-            <ul>
-                {fileNames.map((fileName, index) => (
+            <ul className="file-list">
+                {files.map((fileName, index) => (
                     <li key={index}>
                         <Link to={`/file/${fileName.id}`}>{fileName.name}</Link>
                     </li>
